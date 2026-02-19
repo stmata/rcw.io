@@ -1,0 +1,1659 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastAPI — Consommer une API Externe de Température</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #1c2333;
+            --bg-card: #1a1f2e;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --text-muted: #6e7681;
+            --accent-green: #3fb950;
+            --accent-blue: #58a6ff;
+            --accent-orange: #f0883e;
+            --accent-purple: #bc8cff;
+            --accent-red: #f85149;
+            --accent-cyan: #39d2c0;
+            --accent-yellow: #e3b341;
+            --border: #30363d;
+            --code-bg: #0d1117;
+            --gradient-warm: linear-gradient(135deg, #f0883e 0%, #f85149 50%, #bc8cff 100%);
+            --gradient-cool: linear-gradient(135deg, #58a6ff 0%, #39d2c0 100%);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        /* ── Hero Section ── */
+        .hero {
+            position: relative;
+            min-height: 55vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 4rem 2rem;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: 
+                radial-gradient(ellipse at 20% 50%, rgba(88, 166, 255, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(240, 136, 62, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 80%, rgba(57, 210, 192, 0.05) 0%, transparent 50%);
+            animation: drift 20s ease-in-out infinite;
+        }
+
+        @keyframes drift {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(2%, -1%) rotate(1deg); }
+            66% { transform: translate(-1%, 1%) rotate(-0.5deg); }
+        }
+
+        .hero-content { position: relative; z-index: 1; max-width: 800px; }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(88, 166, 255, 0.1);
+            border: 1px solid rgba(88, 166, 255, 0.2);
+            border-radius: 100px;
+            padding: 0.4rem 1.2rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--accent-blue);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 1.5rem;
+            animation: fadeInDown 0.6s ease-out;
+        }
+
+        .hero h1 {
+            font-family: 'DM Serif Display', serif;
+            font-size: clamp(2.2rem, 5vw, 3.8rem);
+            line-height: 1.15;
+            margin-bottom: 1rem;
+            animation: fadeInDown 0.6s ease-out 0.1s both;
+        }
+
+        .hero h1 .gradient-text {
+            background: var(--gradient-warm);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 1.15rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto 2rem;
+            animation: fadeInDown 0.6s ease-out 0.2s both;
+        }
+
+        .hero-meta {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            animation: fadeInDown 0.6s ease-out 0.3s both;
+        }
+
+        .hero-meta span {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .hero-meta .dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .dot-green { background: var(--accent-green); }
+        .dot-blue { background: var(--accent-blue); }
+        .dot-orange { background: var(--accent-orange); }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Navigation / TOC ── */
+        .toc-bar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(13, 17, 23, 0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 0.6rem 2rem;
+            overflow-x: auto;
+        }
+
+        .toc-bar nav {
+            display: flex;
+            gap: 0.3rem;
+            max-width: 1100px;
+            margin: 0 auto;
+            justify-content: center;
+            flex-wrap: nowrap;
+        }
+
+        .toc-bar a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.78rem;
+            font-weight: 600;
+            padding: 0.35rem 0.8rem;
+            border-radius: 6px;
+            white-space: nowrap;
+            transition: all 0.2s;
+            letter-spacing: 0.02em;
+        }
+
+        .toc-bar a:hover {
+            color: var(--text-primary);
+            background: rgba(255,255,255,0.05);
+        }
+
+        .toc-bar a .step-num {
+            color: var(--accent-orange);
+            margin-right: 0.3rem;
+        }
+
+        /* ── Main Content ── */
+        .content {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 3rem 2rem 6rem;
+        }
+
+        /* ── Section Styling ── */
+        .section {
+            margin-bottom: 4rem;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section-number {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--bg-primary);
+            background: var(--accent-orange);
+            width: 32px; height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .section h2 {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.7rem;
+            line-height: 1.3;
+        }
+
+        .section h3 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            margin: 2rem 0 0.8rem;
+        }
+
+        .section p {
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            font-size: 0.95rem;
+        }
+
+        /* ── Code Blocks ── */
+        .code-block {
+            background: var(--code-bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            margin: 1.2rem 0 1.5rem;
+            overflow: hidden;
+        }
+
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.6rem 1rem;
+            background: rgba(255,255,255,0.02);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .code-header .filename {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .code-header .lang-badge {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            letter-spacing: 0.05em;
+        }
+
+        .lang-python { background: rgba(63, 185, 80, 0.15); color: var(--accent-green); }
+        .lang-bash { background: rgba(240, 136, 62, 0.15); color: var(--accent-orange); }
+        .lang-json { background: rgba(188, 140, 255, 0.15); color: var(--accent-purple); }
+        .lang-text { background: rgba(139, 148, 158, 0.15); color: var(--text-secondary); }
+
+        .code-block pre {
+            padding: 1.2rem 1.4rem;
+            overflow-x: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            line-height: 1.65;
+            color: var(--text-primary);
+            tab-size: 4;
+        }
+
+        .code-block .copy-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 0.25rem 0.6rem;
+            border-radius: 5px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .code-block .copy-btn:hover {
+            color: var(--text-primary);
+            border-color: var(--text-muted);
+        }
+
+        /* Syntax highlighting */
+        .kw { color: var(--accent-purple); font-weight: 600; }
+        .fn { color: var(--accent-blue); }
+        .st { color: var(--accent-green); }
+        .cm { color: var(--text-muted); font-style: italic; }
+        .num { color: var(--accent-orange); }
+        .dec { color: var(--accent-yellow); }
+        .op { color: var(--accent-red); }
+        .type { color: var(--accent-cyan); }
+        .param { color: var(--accent-orange); }
+
+        /* ── Info / Warning / Tip Cards ── */
+        .card {
+            border-radius: 10px;
+            padding: 1.2rem 1.4rem;
+            margin: 1.5rem 0;
+            border-left: 3px solid;
+        }
+
+        .card-info {
+            background: rgba(88, 166, 255, 0.06);
+            border-color: var(--accent-blue);
+        }
+
+        .card-warning {
+            background: rgba(240, 136, 62, 0.06);
+            border-color: var(--accent-orange);
+        }
+
+        .card-tip {
+            background: rgba(63, 185, 80, 0.06);
+            border-color: var(--accent-green);
+        }
+
+        .card-danger {
+            background: rgba(248, 81, 73, 0.06);
+            border-color: var(--accent-red);
+        }
+
+        .card-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.5rem;
+        }
+
+        .card-info .card-label { color: var(--accent-blue); }
+        .card-warning .card-label { color: var(--accent-orange); }
+        .card-tip .card-label { color: var(--accent-green); }
+        .card-danger .card-label { color: var(--accent-red); }
+
+        .card p { margin-bottom: 0.4rem; font-size: 0.9rem; }
+        .card p:last-child { margin-bottom: 0; }
+
+        /* ── Diagram / Architecture ── */
+        .arch-diagram {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2.5rem 2rem;
+            margin: 2rem 0;
+            text-align: center;
+            overflow-x: auto;
+        }
+
+        .arch-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0;
+            flex-wrap: wrap;
+        }
+
+        .arch-box {
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            text-align: center;
+            min-width: 140px;
+            position: relative;
+        }
+
+        .arch-client {
+            background: rgba(88, 166, 255, 0.12);
+            border: 1px solid rgba(88, 166, 255, 0.3);
+            color: var(--accent-blue);
+        }
+
+        .arch-api {
+            background: rgba(63, 185, 80, 0.12);
+            border: 1px solid rgba(63, 185, 80, 0.3);
+            color: var(--accent-green);
+        }
+
+        .arch-external {
+            background: rgba(240, 136, 62, 0.12);
+            border: 1px solid rgba(240, 136, 62, 0.3);
+            color: var(--accent-orange);
+        }
+
+        .arch-arrow {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            padding: 0 0.8rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.2rem;
+        }
+
+        .arch-arrow .arrow-line { color: var(--accent-cyan); font-size: 1.2rem; }
+
+        .arch-box small {
+            display: block;
+            font-weight: 500;
+            font-size: 0.7rem;
+            opacity: 0.7;
+            margin-top: 0.3rem;
+        }
+
+        /* ── Table ── */
+        .table-wrapper {
+            overflow-x: auto;
+            margin: 1.2rem 0;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        th {
+            background: rgba(255,255,255,0.03);
+            text-align: left;
+            padding: 0.8rem 1rem;
+            font-weight: 700;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            padding: 0.7rem 1rem;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+            color: var(--text-secondary);
+        }
+
+        tr:last-child td { border-bottom: none; }
+
+        td code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.78rem;
+            background: rgba(255,255,255,0.05);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            color: var(--accent-cyan);
+        }
+
+        /* ── Inline code ── */
+        p code, li code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            background: rgba(255,255,255,0.06);
+            padding: 0.15rem 0.45rem;
+            border-radius: 4px;
+            color: var(--accent-cyan);
+        }
+
+        /* ── Exercises ── */
+        .exercise {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .exercise::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 3px;
+            background: var(--gradient-cool);
+        }
+
+        .exercise-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: var(--accent-cyan);
+            margin-bottom: 0.6rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .exercise p {
+            font-size: 0.88rem;
+        }
+
+        .difficulty {
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .diff-easy { background: rgba(63, 185, 80, 0.15); color: var(--accent-green); }
+        .diff-medium { background: rgba(227, 179, 65, 0.15); color: var(--accent-yellow); }
+        .diff-hard { background: rgba(248, 81, 73, 0.15); color: var(--accent-red); }
+
+        /* ── Copyright Banner ── */
+        .copyright-banner {
+            background: linear-gradient(135deg, rgba(240, 136, 62, 0.08) 0%, rgba(57, 210, 192, 0.06) 100%);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            padding: 0.6rem 2rem;
+            text-align: center;
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            letter-spacing: 0.06em;
+            font-weight: 500;
+        }
+
+        .copyright-banner span {
+            color: var(--accent-orange);
+            font-weight: 700;
+        }
+
+        /* ── DataFrame Table ── */
+        .df-table-wrapper {
+            overflow-x: auto;
+            margin: 1.5rem 0;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--bg-secondary);
+        }
+
+        .df-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .df-table thead th {
+            background: rgba(57, 210, 192, 0.08);
+            color: var(--accent-cyan);
+            font-weight: 700;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding: 0.7rem 1rem;
+            border-bottom: 2px solid var(--border);
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .df-table tbody td {
+            padding: 0.55rem 1rem;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.4);
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        .df-table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .df-table .idx {
+            color: var(--text-muted);
+            font-weight: 600;
+            width: 40px;
+        }
+
+        .df-table .str-val { color: var(--accent-green); }
+        .df-table .num-val { color: var(--accent-orange); }
+        .df-table .bool-val { color: var(--accent-purple); }
+
+        /* ── Footer ── */
+        .footer {
+            text-align: center;
+            padding: 3rem 2rem;
+            border-top: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        .footer strong { color: var(--text-secondary); }
+
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+            .content { padding: 2rem 1.2rem 4rem; }
+            .arch-flow { flex-direction: column; gap: 0.5rem; }
+            .arch-arrow { transform: rotate(90deg); padding: 0.3rem 0; }
+            .toc-bar nav { justify-content: flex-start; }
+        }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+        /* ── Smooth Scroll ── */
+        html { scroll-behavior: smooth; }
+    </style>
+</head>
+<body>
+
+<!-- ═══════════════════════ COPYRIGHT ═══════════════════════ -->
+<div class="copyright-banner">
+    © 2026 <span>Steve Ataky, PhD</span> — Institut Teccart — Tous droits réservés. Reproduction interdite sans autorisation.
+</div>
+
+<!-- ═══════════════════════ HERO ═══════════════════════ -->
+<header class="hero">
+    <div class="hero-content">
+        <div class="hero-badge">🌡️ Laboratoire Pratique</div>
+        <h1>Consommer une <span class="gradient-text">API Externe</span> avec FastAPI</h1>
+        <p>Apprenez à construire une API intermédiaire qui interroge un service météo externe pour récupérer la température d'une ville en temps réel.</p>
+        <div class="hero-meta">
+            <span><span class="dot dot-green"></span> FastAPI + HTTPX</span>
+            <span><span class="dot dot-blue"></span> OpenWeatherMap API</span>
+            <span><span class="dot dot-orange"></span> Cours 420-D0T-TT</span>
+        </div>
+    </div>
+</header>
+
+<!-- ═══════════════════════ TOC BAR ═══════════════════════ -->
+<div class="toc-bar">
+    <nav>
+        <a href="#architecture"><span class="step-num">01</span>Architecture</a>
+        <a href="#setup"><span class="step-num">02</span>Configuration</a>
+        <a href="#api-key"><span class="step-num">03</span>Clé API</a>
+        <a href="#schemas"><span class="step-num">04</span>Schémas</a>
+        <a href="#service"><span class="step-num">05</span>Service</a>
+        <a href="#routes"><span class="step-num">06</span>Routes</a>
+        <a href="#execution"><span class="step-num">07</span>Exécution</a>
+        <a href="#tests"><span class="step-num">08</span>Tests</a>
+        <a href="#exercices"><span class="step-num">09</span>Exercices</a>
+        <a href="#bonus-json"><span class="step-num">10</span>Bonus: JSON → DataFrame</a>
+    </nav>
+</div>
+
+<!-- ═══════════════════════ CONTENT ═══════════════════════ -->
+<main class="content">
+
+    <!-- ─── Section 1: Architecture ─── -->
+    <section class="section" id="architecture">
+        <div class="section-header">
+            <span class="section-number">01</span>
+            <h2>Architecture Globale</h2>
+        </div>
+        <p>Notre application agit comme un <strong>proxy intelligent</strong> (API Gateway simplifié) entre le client et l'API externe OpenWeatherMap. Cette approche offre plusieurs avantages : abstraction de la complexité de l'API tierce, contrôle sur le format de réponse, gestion centralisée des erreurs, et protection de la clé API.</p>
+
+        <div class="arch-diagram">
+            <div class="arch-flow">
+                <div class="arch-box arch-client">
+                    🖥️ Client
+                    <small>navigateur / curl / Postman</small>
+                </div>
+                <div class="arch-arrow">
+                    <span>GET /temperature?ville=Montréal</span>
+                    <span class="arrow-line">→→→</span>
+                </div>
+                <div class="arch-box arch-api">
+                    ⚡ Notre API
+                    <small>FastAPI (localhost:8000)</small>
+                </div>
+                <div class="arch-arrow">
+                    <span>GET api.openweathermap.org</span>
+                    <span class="arrow-line">→→→</span>
+                </div>
+                <div class="arch-box arch-external">
+                    🌍 OpenWeatherMap
+                    <small>API Externe</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="card card-info">
+            <div class="card-label">💡 Concept Clé</div>
+            <p>Ce patron est omniprésent en développement web : votre backend sert de <strong>couche d'abstraction</strong> entre le frontend et les services tiers. C'est le fondement des architectures microservices.</p>
+        </div>
+    </section>
+
+    <!-- ─── Section 2: Setup ─── -->
+    <section class="section" id="setup">
+        <div class="section-header">
+            <span class="section-number">02</span>
+            <h2>Configuration du Projet</h2>
+        </div>
+
+        <h3>Structure des fichiers</h3>
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">📁 Structure du projet</span>
+                <span class="lang-badge lang-text">tree</span>
+            </div>
+            <pre>weather-api/
+├── main.py              <span class="cm"># Point d'entrée FastAPI</span>
+├── schemas.py           <span class="cm"># Modèles Pydantic</span>
+├── services/
+│   └── weather.py       <span class="cm"># Logique d'appel à l'API externe</span>
+├── .env                 <span class="cm"># Variables d'environnement (clé API)</span>
+├── requirements.txt     <span class="cm"># Dépendances</span>
+└── tests/
+    └── test_weather.py  <span class="cm"># Tests unitaires</span></pre>
+        </div>
+
+        <h3>Installer les dépendances</h3>
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">Terminal</span>
+                <span class="lang-badge lang-bash">bash</span>
+            </div>
+            <pre><span class="cm"># Créer et activer l'environnement virtuel</span>
+python -m venv venv
+source venv/bin/activate        <span class="cm"># Linux/Mac</span>
+venv\Scripts\activate           <span class="cm"># Windows</span>
+
+<span class="cm"># Installer les packages</span>
+pip install fastapi uvicorn httpx python-dotenv</pre>
+        </div>
+
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">requirements.txt</span>
+                <span class="lang-badge lang-text">txt</span>
+            </div>
+            <pre>fastapi==0.115.6
+uvicorn==0.34.0
+httpx==0.28.1
+python-dotenv==1.0.1</pre>
+        </div>
+
+        <div class="card card-tip">
+            <div class="card-label">🔧 Pourquoi HTTPX et pas Requests ?</div>
+            <p><code>httpx</code> supporte les appels <strong>asynchrones</strong> (<code>async/await</code>), ce qui est essentiel avec FastAPI. Contrairement à <code>requests</code> qui bloque le thread, <code>httpx</code> permet à FastAPI de servir d'autres requêtes pendant l'attente de la réponse externe.</p>
+        </div>
+    </section>
+
+    <!-- ─── Section 3: API Key ─── -->
+    <section class="section" id="api-key">
+        <div class="section-header">
+            <span class="section-number">03</span>
+            <h2>Obtenir une Clé API</h2>
+        </div>
+
+        <p>OpenWeatherMap offre un plan gratuit généreux pour l'apprentissage. Voici les étapes :</p>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Étape</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>1</strong></td>
+                        <td>Allez sur <code>openweathermap.org</code> et créez un compte gratuit</td>
+                    </tr>
+                    <tr>
+                        <td><strong>2</strong></td>
+                        <td>Naviguez vers <strong>API Keys</strong> dans votre profil</td>
+                    </tr>
+                    <tr>
+                        <td><strong>3</strong></td>
+                        <td>Copiez votre clé API (activation sous ~10 minutes)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>4</strong></td>
+                        <td>Créez un fichier <code>.env</code> à la racine du projet</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">.env</span>
+                <span class="lang-badge lang-bash">env</span>
+            </div>
+            <pre>OPENWEATHER_API_KEY=votre_cle_api_ici</pre>
+        </div>
+
+        <div class="card card-danger">
+            <div class="card-label">🔒 Sécurité — Règle Absolue</div>
+            <p><strong>Ne jamais commiter un fichier <code>.env</code> dans Git.</strong> Ajoutez-le immédiatement à votre <code>.gitignore</code>. En milieu professionnel, les clés API exposées sur GitHub sont détectées en quelques minutes par des bots malveillants.</p>
+        </div>
+    </section>
+
+    <!-- ─── Section 4: Schemas ─── -->
+    <section class="section" id="schemas">
+        <div class="section-header">
+            <span class="section-number">04</span>
+            <h2>Schémas Pydantic</h2>
+        </div>
+
+        <p>Les schémas définissent la structure de nos données. Pydantic effectue la validation automatiquement et génère la documentation OpenAPI.</p>
+
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">schemas.py</span>
+                <span class="lang-badge lang-python">python</span>
+            </div>
+            <pre><span class="kw">from</span> pydantic <span class="kw">import</span> BaseModel, Field
+<span class="kw">from</span> typing <span class="kw">import</span> Optional
+
+
+<span class="kw">class</span> <span class="type">TemperatureResponse</span>(BaseModel):
+    <span class="st">"""Réponse standardisée de notre API."""</span>
+
+    ville: <span class="type">str</span> = Field(..., <span class="param">description</span>=<span class="st">"Nom de la ville"</span>)
+    pays: <span class="type">str</span> = Field(..., <span class="param">description</span>=<span class="st">"Code pays (ex: CA, FR)"</span>)
+    temperature: <span class="type">float</span> = Field(..., <span class="param">description</span>=<span class="st">"Température en °C"</span>)
+    ressenti: <span class="type">float</span> = Field(..., <span class="param">description</span>=<span class="st">"Température ressentie en °C"</span>)
+    description: <span class="type">str</span> = Field(..., <span class="param">description</span>=<span class="st">"Description météo"</span>)
+    humidite: <span class="type">int</span> = Field(..., <span class="param">description</span>=<span class="st">"Humidité en %"</span>)
+
+    <span class="kw">class</span> <span class="type">Config</span>:
+        json_schema_extra = {
+            <span class="st">"example"</span>: {
+                <span class="st">"ville"</span>: <span class="st">"Montréal"</span>,
+                <span class="st">"pays"</span>: <span class="st">"CA"</span>,
+                <span class="st">"temperature"</span>: <span class="num">-8.5</span>,
+                <span class="st">"ressenti"</span>: <span class="num">-14.2</span>,
+                <span class="st">"description"</span>: <span class="st">"neige légère"</span>,
+                <span class="st">"humidite"</span>: <span class="num">78</span>
+            }
+        }
+
+
+<span class="kw">class</span> <span class="type">ErrorResponse</span>(BaseModel):
+    <span class="st">"""Réponse d'erreur standardisée."""</span>
+
+    detail: <span class="type">str</span>
+    status_code: <span class="type">int</span></pre>
+        </div>
+
+        <div class="card card-info">
+            <div class="card-label">📝 Bonne Pratique</div>
+            <p>Utiliser <code>Field(...)</code> avec des descriptions enrichit automatiquement la documentation Swagger UI. Le <code>json_schema_extra</code> fournit un exemple concret dans la doc interactive.</p>
+        </div>
+    </section>
+
+    <!-- ─── Section 5: Service ─── -->
+    <section class="section" id="service">
+        <div class="section-header">
+            <span class="section-number">05</span>
+            <h2>Le Service Météo (Couche Métier)</h2>
+        </div>
+
+        <p>Ce module encapsule toute la logique de communication avec l'API externe. Il est responsable de l'appel HTTP, de la transformation des données et de la gestion des erreurs.</p>
+
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">services/weather.py</span>
+                <span class="lang-badge lang-python">python</span>
+            </div>
+            <pre><span class="kw">import</span> httpx
+<span class="kw">from</span> fastapi <span class="kw">import</span> HTTPException
+<span class="kw">from</span> schemas <span class="kw">import</span> TemperatureResponse
+
+<span class="cm"># URL de base de l'API OpenWeatherMap</span>
+BASE_URL = <span class="st">"https://api.openweathermap.org/data/2.5/weather"</span>
+
+
+<span class="kw">async def</span> <span class="fn">get_temperature</span>(ville: <span class="type">str</span>, api_key: <span class="type">str</span>) -> <span class="type">TemperatureResponse</span>:
+    <span class="st">"""
+    Interroge OpenWeatherMap et retourne la température
+    d'une ville donnée.
+    
+    Args:
+        ville: Nom de la ville à rechercher
+        api_key: Clé API OpenWeatherMap
+    
+    Returns:
+        TemperatureResponse avec les données météo
+    
+    Raises:
+        HTTPException: Si la ville n'est pas trouvée ou
+                       si l'API externe échoue
+    """</span>
+    
+    <span class="cm"># Paramètres de la requête vers l'API externe</span>
+    params = {
+        <span class="st">"q"</span>: ville,
+        <span class="st">"appid"</span>: api_key,
+        <span class="st">"units"</span>: <span class="st">"metric"</span>,   <span class="cm"># Celsius (pas Kelvin !)</span>
+        <span class="st">"lang"</span>: <span class="st">"fr"</span>,        <span class="cm"># Descriptions en français</span>
+    }
+
+    <span class="cm"># ── Appel asynchrone à l'API externe ──</span>
+    <span class="kw">async with</span> httpx.AsyncClient() <span class="kw">as</span> client:
+        <span class="kw">try</span>:
+            response = <span class="kw">await</span> client.<span class="fn">get</span>(
+                BASE_URL,
+                <span class="param">params</span>=params,
+                <span class="param">timeout</span>=<span class="num">10.0</span>  <span class="cm"># Timeout de 10 secondes</span>
+            )
+        <span class="kw">except</span> httpx.TimeoutException:
+            <span class="kw">raise</span> HTTPException(
+                <span class="param">status_code</span>=<span class="num">504</span>,
+                <span class="param">detail</span>=<span class="st">"L'API météo n'a pas répondu à temps."</span>
+            )
+        <span class="kw">except</span> httpx.RequestError <span class="kw">as</span> e:
+            <span class="kw">raise</span> HTTPException(
+                <span class="param">status_code</span>=<span class="num">502</span>,
+                <span class="param">detail</span>=<span class="st">f"Erreur de connexion à l'API météo : </span>{e}<span class="st">"</span>
+            )
+
+    <span class="cm"># ── Gestion des codes de statut HTTP ──</span>
+    <span class="kw">if</span> response.status_code == <span class="num">404</span>:
+        <span class="kw">raise</span> HTTPException(
+            <span class="param">status_code</span>=<span class="num">404</span>,
+            <span class="param">detail</span>=<span class="st">f"Ville '</span>{ville}<span class="st">' introuvable."</span>
+        )
+    <span class="kw">elif</span> response.status_code == <span class="num">401</span>:
+        <span class="kw">raise</span> HTTPException(
+            <span class="param">status_code</span>=<span class="num">500</span>,
+            <span class="param">detail</span>=<span class="st">"Clé API invalide. Vérifiez votre configuration."</span>
+        )
+    <span class="kw">elif</span> response.status_code != <span class="num">200</span>:
+        <span class="kw">raise</span> HTTPException(
+            <span class="param">status_code</span>=<span class="num">502</span>,
+            <span class="param">detail</span>=<span class="st">f"Erreur API externe (code </span>{response.status_code}<span class="st">)"</span>
+        )
+
+    <span class="cm"># ── Extraction et transformation des données ──</span>
+    data = response.<span class="fn">json</span>()
+
+    <span class="kw">return</span> TemperatureResponse(
+        ville=data[<span class="st">"name"</span>],
+        pays=data[<span class="st">"sys"</span>][<span class="st">"country"</span>],
+        temperature=<span class="fn">round</span>(data[<span class="st">"main"</span>][<span class="st">"temp"</span>], <span class="num">1</span>),
+        ressenti=<span class="fn">round</span>(data[<span class="st">"main"</span>][<span class="st">"feels_like"</span>], <span class="num">1</span>),
+        description=data[<span class="st">"weather"</span>][<span class="num">0</span>][<span class="st">"description"</span>],
+        humidite=data[<span class="st">"main"</span>][<span class="st">"humidity"</span>],
+    )</pre>
+        </div>
+
+        <div class="card card-warning">
+            <div class="card-label">⚠️ Point Important — Codes d'erreur</div>
+            <p>Remarquez comment nous <strong>traduisons</strong> les erreurs de l'API externe en erreurs appropriées pour notre client. Une erreur 401 (clé invalide) côté OpenWeatherMap devient un 500 pour notre client, car c'est une erreur de <em>notre</em> serveur, pas de l'utilisateur.</p>
+        </div>
+    </section>
+
+    <!-- ─── Section 6: Routes ─── -->
+    <section class="section" id="routes">
+        <div class="section-header">
+            <span class="section-number">06</span>
+            <h2>Le Point d'Entrée — main.py</h2>
+        </div>
+
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">main.py</span>
+                <span class="lang-badge lang-python">python</span>
+            </div>
+            <pre><span class="kw">import</span> os
+<span class="kw">from</span> dotenv <span class="kw">import</span> load_dotenv
+<span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI, Query
+<span class="kw">from</span> schemas <span class="kw">import</span> TemperatureResponse, ErrorResponse
+<span class="kw">from</span> services.weather <span class="kw">import</span> get_temperature
+
+<span class="cm"># Charger les variables d'environnement</span>
+<span class="fn">load_dotenv</span>()
+API_KEY = os.getenv(<span class="st">"OPENWEATHER_API_KEY"</span>)
+
+<span class="cm"># ── Initialisation de l'application ──</span>
+app = FastAPI(
+    <span class="param">title</span>=<span class="st">"🌡️ API Météo"</span>,
+    <span class="param">description</span>=<span class="st">"API intermédiaire pour récupérer la température d'une ville."</span>,
+    <span class="param">version</span>=<span class="st">"1.0.0"</span>,
+)
+
+
+<span class="dec">@app.get</span>(<span class="st">"/"</span>)
+<span class="kw">async def</span> <span class="fn">root</span>():
+    <span class="st">"""Page d'accueil de l'API."""</span>
+    <span class="kw">return</span> {
+        <span class="st">"message"</span>: <span class="st">"Bienvenue sur l'API Météo 🌡️"</span>,
+        <span class="st">"documentation"</span>: <span class="st">"/docs"</span>,
+        <span class="st">"usage"</span>: <span class="st">"GET /temperature?ville=Montreal"</span>,
+    }
+
+
+<span class="dec">@app.get</span>(
+    <span class="st">"/temperature"</span>,
+    <span class="param">response_model</span>=TemperatureResponse,
+    <span class="param">responses</span>={
+        <span class="num">404</span>: {<span class="st">"model"</span>: ErrorResponse, <span class="st">"description"</span>: <span class="st">"Ville introuvable"</span>},
+        <span class="num">502</span>: {<span class="st">"model"</span>: ErrorResponse, <span class="st">"description"</span>: <span class="st">"Erreur API externe"</span>},
+    },
+    <span class="param">summary</span>=<span class="st">"Obtenir la température d'une ville"</span>,
+    <span class="param">tags</span>=[<span class="st">"Météo"</span>],
+)
+<span class="kw">async def</span> <span class="fn">temperature</span>(
+    ville: <span class="type">str</span> = Query(
+        ...,
+        <span class="param">min_length</span>=<span class="num">1</span>,
+        <span class="param">max_length</span>=<span class="num">100</span>,
+        <span class="param">description</span>=<span class="st">"Nom de la ville (ex: Montreal, Paris, Tokyo)"</span>,
+        <span class="param">examples</span>=[<span class="st">"Montreal"</span>, <span class="st">"Paris"</span>, <span class="st">"Tokyo"</span>],
+    ),
+):
+    <span class="st">"""
+    Récupère la température actuelle d'une ville via
+    l'API OpenWeatherMap.
+    
+    - **ville** : Nom de la ville à rechercher
+    
+    Retourne la température, le ressenti, l'humidité et
+    une description de la météo en français.
+    """</span>
+
+    <span class="cm"># Vérifier que la clé API est configurée</span>
+    <span class="kw">if not</span> API_KEY:
+        <span class="kw">from</span> fastapi <span class="kw">import</span> HTTPException
+        <span class="kw">raise</span> HTTPException(
+            <span class="param">status_code</span>=<span class="num">500</span>,
+            <span class="param">detail</span>=<span class="st">"OPENWEATHER_API_KEY non configurée."</span>,
+        )
+
+    <span class="kw">return await</span> <span class="fn">get_temperature</span>(ville, API_KEY)</pre>
+        </div>
+
+        <div class="card card-tip">
+            <div class="card-label">📖 Documentation Automatique</div>
+            <p>Grâce aux paramètres <code>response_model</code>, <code>responses</code>, <code>summary</code> et aux docstrings, FastAPI génère automatiquement une documentation Swagger complète accessible à <code>/docs</code>.</p>
+        </div>
+    </section>
+
+    <!-- ─── Section 7: Execution ─── -->
+    <section class="section" id="execution">
+        <div class="section-header">
+            <span class="section-number">07</span>
+            <h2>Exécution et Tests Manuels</h2>
+        </div>
+
+        <h3>Lancer le serveur</h3>
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">Terminal</span>
+                <span class="lang-badge lang-bash">bash</span>
+            </div>
+            <pre>uvicorn main:app --reload --port 8000</pre>
+        </div>
+
+        <h3>Tester avec curl</h3>
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">Terminal — Requête réussie</span>
+                <span class="lang-badge lang-bash">bash</span>
+            </div>
+            <pre><span class="cm"># Température de Montréal</span>
+curl "http://localhost:8000/temperature?ville=Montreal"</pre>
+        </div>
+
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">Réponse JSON attendue</span>
+                <span class="lang-badge lang-json">json</span>
+            </div>
+            <pre>{
+    <span class="st">"ville"</span>: <span class="st">"Montréal"</span>,
+    <span class="st">"pays"</span>: <span class="st">"CA"</span>,
+    <span class="st">"temperature"</span>: <span class="num">-8.5</span>,
+    <span class="st">"ressenti"</span>: <span class="num">-14.2</span>,
+    <span class="st">"description"</span>: <span class="st">"neige légère"</span>,
+    <span class="st">"humidite"</span>: <span class="num">78</span>
+}</pre>
+        </div>
+
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">Terminal — Ville invalide</span>
+                <span class="lang-badge lang-bash">bash</span>
+            </div>
+            <pre><span class="cm"># Tester la gestion d'erreur</span>
+curl "http://localhost:8000/temperature?ville=VilleQuiNexistePas"</pre>
+        </div>
+
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">Réponse d'erreur</span>
+                <span class="lang-badge lang-json">json</span>
+            </div>
+            <pre>{
+    <span class="st">"detail"</span>: <span class="st">"Ville 'VilleQuiNexistePas' introuvable."</span>
+}</pre>
+        </div>
+
+        <h3>Documentation interactive</h3>
+        <p>Ouvrez votre navigateur à <code>http://localhost:8000/docs</code> pour accéder à l'interface Swagger UI. Vous pouvez tester tous les endpoints directement depuis cette interface.</p>
+    </section>
+
+    <!-- ─── Section 8: Tests ─── -->
+    <section class="section" id="tests">
+        <div class="section-header">
+            <span class="section-number">08</span>
+            <h2>Tests Automatisés</h2>
+        </div>
+
+        <p>Installons d'abord pytest et le client de test HTTPX :</p>
+
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">Terminal</span>
+                <span class="lang-badge lang-bash">bash</span>
+            </div>
+            <pre>pip install pytest pytest-asyncio</pre>
+        </div>
+
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">tests/test_weather.py</span>
+                <span class="lang-badge lang-python">python</span>
+            </div>
+            <pre><span class="kw">import</span> pytest
+<span class="kw">from</span> httpx <span class="kw">import</span> AsyncClient, ASGITransport
+<span class="kw">from</span> main <span class="kw">import</span> app
+
+
+<span class="dec">@pytest.mark.asyncio</span>
+<span class="kw">async def</span> <span class="fn">test_root</span>():
+    <span class="st">"""Tester que la page d'accueil répond correctement."""</span>
+    transport = ASGITransport(<span class="param">app</span>=app)
+    <span class="kw">async with</span> AsyncClient(
+        <span class="param">transport</span>=transport, <span class="param">base_url</span>=<span class="st">"http://test"</span>
+    ) <span class="kw">as</span> client:
+        response = <span class="kw">await</span> client.<span class="fn">get</span>(<span class="st">"/"</span>)
+    <span class="kw">assert</span> response.status_code == <span class="num">200</span>
+    <span class="kw">assert</span> <span class="st">"message"</span> <span class="kw">in</span> response.<span class="fn">json</span>()
+
+
+<span class="dec">@pytest.mark.asyncio</span>
+<span class="kw">async def</span> <span class="fn">test_temperature_ville_valide</span>():
+    <span class="st">"""Tester une requête avec une ville valide."""</span>
+    transport = ASGITransport(<span class="param">app</span>=app)
+    <span class="kw">async with</span> AsyncClient(
+        <span class="param">transport</span>=transport, <span class="param">base_url</span>=<span class="st">"http://test"</span>
+    ) <span class="kw">as</span> client:
+        response = <span class="kw">await</span> client.<span class="fn">get</span>(
+            <span class="st">"/temperature"</span>, <span class="param">params</span>={<span class="st">"ville"</span>: <span class="st">"Paris"</span>}
+        )
+    <span class="kw">assert</span> response.status_code == <span class="num">200</span>
+    data = response.<span class="fn">json</span>()
+    <span class="kw">assert</span> <span class="st">"temperature"</span> <span class="kw">in</span> data
+    <span class="kw">assert</span> <span class="st">"ville"</span> <span class="kw">in</span> data
+    <span class="kw">assert</span> data[<span class="st">"pays"</span>] == <span class="st">"FR"</span>
+
+
+<span class="dec">@pytest.mark.asyncio</span>
+<span class="kw">async def</span> <span class="fn">test_temperature_ville_invalide</span>():
+    <span class="st">"""Tester une requête avec une ville inexistante."""</span>
+    transport = ASGITransport(<span class="param">app</span>=app)
+    <span class="kw">async with</span> AsyncClient(
+        <span class="param">transport</span>=transport, <span class="param">base_url</span>=<span class="st">"http://test"</span>
+    ) <span class="kw">as</span> client:
+        response = <span class="kw">await</span> client.<span class="fn">get</span>(
+            <span class="st">"/temperature"</span>, <span class="param">params</span>={<span class="st">"ville"</span>: <span class="st">"XyzVilleInconnue999"</span>}
+        )
+    <span class="kw">assert</span> response.status_code == <span class="num">404</span>
+
+
+<span class="dec">@pytest.mark.asyncio</span>
+<span class="kw">async def</span> <span class="fn">test_temperature_parametre_manquant</span>():
+    <span class="st">"""Tester qu'un paramètre manquant retourne 422."""</span>
+    transport = ASGITransport(<span class="param">app</span>=app)
+    <span class="kw">async with</span> AsyncClient(
+        <span class="param">transport</span>=transport, <span class="param">base_url</span>=<span class="st">"http://test"</span>
+    ) <span class="kw">as</span> client:
+        response = <span class="kw">await</span> client.<span class="fn">get</span>(<span class="st">"/temperature"</span>)
+    <span class="kw">assert</span> response.status_code == <span class="num">422</span>  <span class="cm"># Validation error</span></pre>
+        </div>
+
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">Lancer les tests</span>
+                <span class="lang-badge lang-bash">bash</span>
+            </div>
+            <pre>pytest tests/ -v</pre>
+        </div>
+    </section>
+
+    <!-- ─── Section 9: Exercices ─── -->
+    <section class="section" id="exercices">
+        <div class="section-header">
+            <span class="section-number">09</span>
+            <h2>Exercices Pratiques</h2>
+        </div>
+
+        <p>Renforcez votre compréhension avec ces exercices progressifs.</p>
+
+        <div class="exercise">
+            <div class="exercise-title">
+                🏋️ Exercice 1 — Paramètre d'unité
+                <span class="difficulty diff-easy">Facile</span>
+            </div>
+            <p>Ajoutez un query parameter optionnel <code>unite</code> qui accepte <code>"celsius"</code> (défaut) ou <code>"fahrenheit"</code>. Si l'utilisateur choisit Fahrenheit, passez <code>units=imperial</code> à l'API OpenWeatherMap. Pensez à mettre à jour le schéma de réponse pour inclure l'unité utilisée.</p>
+        </div>
+
+        <div class="exercise">
+            <div class="exercise-title">
+                🏋️ Exercice 2 — Endpoint multi-villes
+                <span class="difficulty diff-medium">Moyen</span>
+            </div>
+            <p>Créez un endpoint <code>POST /temperatures</code> qui accepte une liste de villes dans le body (ex: <code>{"villes": ["Montreal", "Paris", "Tokyo"]}</code>) et retourne la température de chaque ville. Utilisez <code>asyncio.gather()</code> pour appeler l'API externe en parallèle et non séquentiellement.</p>
+        </div>
+
+        <div class="exercise">
+            <div class="exercise-title">
+                🏋️ Exercice 3 — Cache avec expiration
+                <span class="difficulty diff-medium">Moyen</span>
+            </div>
+            <p>Implémentez un cache en mémoire (dictionnaire Python) qui stocke les résultats pendant 5 minutes. Si la même ville est demandée avant l'expiration, retournez les données du cache sans appeler l'API externe. Ajoutez un champ <code>source: "cache" | "api"</code> dans la réponse.</p>
+        </div>
+
+        <div class="exercise">
+            <div class="exercise-title">
+                🏋️ Exercice 4 — Prévisions 5 jours
+                <span class="difficulty diff-hard">Avancé</span>
+            </div>
+            <p>Utilisez l'endpoint <code>/data/2.5/forecast</code> d'OpenWeatherMap pour créer une route <code>GET /previsions?ville=Montreal&jours=3</code> qui retourne les prévisions des prochains jours. Structurez la réponse avec un schéma Pydantic imbriqué contenant une liste de prévisions journalières (date, temp min/max, description).</p>
+        </div>
+
+        <div class="exercise">
+            <div class="exercise-title">
+                🏋️ Exercice 5 — Tests avec mocking
+                <span class="difficulty diff-hard">Avancé</span>
+            </div>
+            <p>Réécrivez les tests en utilisant <code>unittest.mock.patch</code> pour simuler (mocker) les réponses de l'API OpenWeatherMap. Vos tests ne doivent effectuer aucun appel réseau réel. Testez les cas : réponse réussie, ville introuvable (404), timeout, et erreur serveur (500).</p>
+        </div>
+    </section>
+
+    <!-- ─── Section 10: Bonus JSON → DataFrame ─── -->
+    <section class="section" id="bonus-json">
+        <div class="section-header">
+            <span class="section-number">10</span>
+            <h2>Bonus : JSON externe → DataFrame → Tableau</h2>
+        </div>
+
+        <p>Au-delà des API météo, le web regorge de données JSON accessibles publiquement. Dans cette section, nous allons récupérer des données JSON depuis une URL publique, les transformer en <code>DataFrame</code> Pandas, et les afficher dans un tableau via FastAPI.</p>
+
+        <div class="card card-info">
+            <div class="card-label">🌐 Sources JSON publiques populaires</div>
+            <p>Voici quelques URLs qui retournent du JSON directement, sans clé API :</p>
+            <p>• <code>jsonplaceholder.typicode.com/users</code> — Données d'utilisateurs fictifs</p>
+            <p>• <code>restcountries.com/v3.1/region/americas</code> — Pays des Amériques</p>
+            <p>• <code>api.github.com/repos/tiangolo/fastapi/issues</code> — Issues GitHub de FastAPI</p>
+            <p>• <code>data.montreal.ca/api/...</code> — Données ouvertes de Montréal</p>
+        </div>
+
+        <h3>Installer Pandas</h3>
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">Terminal</span>
+                <span class="lang-badge lang-bash">bash</span>
+            </div>
+            <pre>pip install pandas</pre>
+        </div>
+
+        <h3>Exemple complet : Récupérer des utilisateurs et afficher en tableau</h3>
+
+        <p>Nous utilisons l'API gratuite <strong>JSONPlaceholder</strong> qui fournit des données fictives au format JSON — parfait pour apprendre sans créer de compte.</p>
+
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">services/json_fetcher.py</span>
+                <span class="lang-badge lang-python">python</span>
+            </div>
+            <pre><span class="kw">import</span> httpx
+<span class="kw">import</span> pandas <span class="kw">as</span> pd
+<span class="kw">from</span> fastapi <span class="kw">import</span> HTTPException
+
+
+<span class="kw">async def</span> <span class="fn">fetch_json_as_dataframe</span>(url: <span class="type">str</span>) -> pd.DataFrame:
+    <span class="st">"""
+    Récupère des données JSON depuis une URL et les
+    convertit en DataFrame Pandas.
+
+    Args:
+        url: URL retournant un tableau JSON (list of objects)
+
+    Returns:
+        DataFrame Pandas contenant les données
+    """</span>
+    <span class="kw">async with</span> httpx.AsyncClient() <span class="kw">as</span> client:
+        <span class="kw">try</span>:
+            response = <span class="kw">await</span> client.<span class="fn">get</span>(url, <span class="param">timeout</span>=<span class="num">15.0</span>)
+            response.<span class="fn">raise_for_status</span>()
+        <span class="kw">except</span> httpx.TimeoutException:
+            <span class="kw">raise</span> HTTPException(
+                <span class="param">status_code</span>=<span class="num">504</span>,
+                <span class="param">detail</span>=<span class="st">f"Timeout lors de l'accès à </span>{url}<span class="st">"</span>
+            )
+        <span class="kw">except</span> httpx.HTTPStatusError <span class="kw">as</span> e:
+            <span class="kw">raise</span> HTTPException(
+                <span class="param">status_code</span>=<span class="num">502</span>,
+                <span class="param">detail</span>=<span class="st">f"Erreur HTTP </span>{e.response.status_code}<span class="st"> depuis </span>{url}<span class="st">"</span>
+            )
+
+    data = response.<span class="fn">json</span>()
+
+    <span class="cm"># Vérifier que c'est bien une liste d'objets</span>
+    <span class="kw">if not isinstance</span>(data, <span class="type">list</span>):
+        <span class="kw">raise</span> HTTPException(
+            <span class="param">status_code</span>=<span class="num">422</span>,
+            <span class="param">detail</span>=<span class="st">"Le JSON doit être un tableau (liste d'objets)."</span>
+        )
+
+    <span class="cm"># ── Conversion en DataFrame ──</span>
+    df = pd.<span class="fn">DataFrame</span>(data)
+
+    <span class="kw">return</span> df</pre>
+        </div>
+
+        <h3>Ajouter les routes dans main.py</h3>
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">main.py — Nouvelles routes à ajouter</span>
+                <span class="lang-badge lang-python">python</span>
+            </div>
+            <pre><span class="kw">from</span> fastapi.responses <span class="kw">import</span> HTMLResponse
+<span class="kw">from</span> services.json_fetcher <span class="kw">import</span> fetch_json_as_dataframe
+
+
+<span class="cm"># ═══════════════════════════════════════════════════════</span>
+<span class="cm"># Route 1 : JSON → DataFrame → Réponse JSON</span>
+<span class="cm"># ═══════════════════════════════════════════════════════</span>
+
+<span class="dec">@app.get</span>(
+    <span class="st">"/fetch-json"</span>,
+    <span class="param">summary</span>=<span class="st">"Récupérer du JSON externe et le retourner en tableau"</span>,
+    <span class="param">tags</span>=[<span class="st">"JSON Externe"</span>],
+)
+<span class="kw">async def</span> <span class="fn">fetch_json</span>(
+    url: <span class="type">str</span> = Query(
+        <span class="param">default</span>=<span class="st">"https://jsonplaceholder.typicode.com/users"</span>,
+        <span class="param">description</span>=<span class="st">"URL d'un endpoint JSON public"</span>,
+    ),
+    colonnes: <span class="type">str</span> = Query(
+        <span class="param">default</span>=<span class="kw">None</span>,
+        <span class="param">description</span>=<span class="st">"Colonnes à garder, séparées par des virgules (ex: name,email,phone)"</span>,
+    ),
+    limite: <span class="type">int</span> = Query(
+        <span class="param">default</span>=<span class="num">10</span>,
+        <span class="param">ge</span>=<span class="num">1</span>,
+        <span class="param">le</span>=<span class="num">100</span>,
+        <span class="param">description</span>=<span class="st">"Nombre max de lignes"</span>,
+    ),
+):
+    <span class="st">"""
+    Récupère des données JSON depuis une URL publique,
+    les charge dans un DataFrame Pandas, puis retourne
+    les données filtrées au format JSON.
+    """</span>
+    df = <span class="kw">await</span> <span class="fn">fetch_json_as_dataframe</span>(url)
+
+    <span class="cm"># Filtrer les colonnes si spécifié</span>
+    <span class="kw">if</span> colonnes:
+        cols = [c.<span class="fn">strip</span>() <span class="kw">for</span> c <span class="kw">in</span> colonnes.<span class="fn">split</span>(<span class="st">","</span>)]
+        cols_valides = [c <span class="kw">for</span> c <span class="kw">in</span> cols <span class="kw">if</span> c <span class="kw">in</span> df.columns]
+        <span class="kw">if</span> cols_valides:
+            df = df[cols_valides]
+
+    <span class="cm"># Limiter le nombre de lignes</span>
+    df = df.<span class="fn">head</span>(limite)
+
+    <span class="kw">return</span> {
+        <span class="st">"source"</span>: url,
+        <span class="st">"total_lignes"</span>: <span class="fn">len</span>(df),
+        <span class="st">"colonnes"</span>: <span class="fn">list</span>(df.columns),
+        <span class="st">"donnees"</span>: df.<span class="fn">to_dict</span>(<span class="param">orient</span>=<span class="st">"records"</span>),
+    }
+
+
+<span class="cm"># ═══════════════════════════════════════════════════════</span>
+<span class="cm"># Route 2 : JSON → DataFrame → Tableau HTML</span>
+<span class="cm"># ═══════════════════════════════════════════════════════</span>
+
+<span class="dec">@app.get</span>(
+    <span class="st">"/fetch-json/tableau"</span>,
+    <span class="param">response_class</span>=HTMLResponse,
+    <span class="param">summary</span>=<span class="st">"Afficher le JSON externe dans un tableau HTML"</span>,
+    <span class="param">tags</span>=[<span class="st">"JSON Externe"</span>],
+)
+<span class="kw">async def</span> <span class="fn">fetch_json_table</span>(
+    url: <span class="type">str</span> = Query(
+        <span class="param">default</span>=<span class="st">"https://jsonplaceholder.typicode.com/users"</span>,
+        <span class="param">description</span>=<span class="st">"URL d'un endpoint JSON public"</span>,
+    ),
+    colonnes: <span class="type">str</span> = Query(
+        <span class="param">default</span>=<span class="kw">None</span>,
+        <span class="param">description</span>=<span class="st">"Colonnes à garder (séparées par virgules)"</span>,
+    ),
+    limite: <span class="type">int</span> = Query(
+        <span class="param">default</span>=<span class="num">10</span>, <span class="param">ge</span>=<span class="num">1</span>, <span class="param">le</span>=<span class="num">100</span>,
+    ),
+):
+    <span class="st">"""
+    Récupère du JSON depuis une URL, le transforme en
+    DataFrame, et affiche le résultat dans un tableau
+    HTML stylisé directement dans le navigateur.
+    """</span>
+    df = <span class="kw">await</span> <span class="fn">fetch_json_as_dataframe</span>(url)
+
+    <span class="kw">if</span> colonnes:
+        cols = [c.<span class="fn">strip</span>() <span class="kw">for</span> c <span class="kw">in</span> colonnes.<span class="fn">split</span>(<span class="st">","</span>)]
+        cols_valides = [c <span class="kw">for</span> c <span class="kw">in</span> cols <span class="kw">if</span> c <span class="kw">in</span> df.columns]
+        <span class="kw">if</span> cols_valides:
+            df = df[cols_valides]
+
+    df = df.<span class="fn">head</span>(limite)
+
+    <span class="cm"># ── Convertir le DataFrame en tableau HTML stylisé ──</span>
+    html_table = df.<span class="fn">to_html</span>(
+        <span class="param">index</span>=<span class="kw">True</span>,
+        <span class="param">classes</span>=<span class="st">"dataframe-table"</span>,
+        <span class="param">border</span>=<span class="num">0</span>,
+        <span class="param">justify</span>=<span class="st">"left"</span>,
+    )
+
+    <span class="cm"># Page HTML complète avec styles intégrés</span>
+    html = <span class="st">f"""
+    &lt;!DOCTYPE html&gt;
+    &lt;html&gt;
+    &lt;head&gt;
+        &lt;title&gt;DataFrame — Données JSON&lt;/title&gt;
+        &lt;style&gt;
+            body {{
+                font-family: 'Segoe UI', sans-serif;
+                background: #0d1117; color: #e6edf3;
+                padding: 2rem; margin: 0;
+            }}
+            h1 {{ font-size: 1.4rem; margin-bottom: 0.3rem; }}
+            .meta {{ color: #8b949e; font-size: 0.85rem;
+                     margin-bottom: 1.5rem; }}
+            .dataframe-table {{
+                border-collapse: collapse; width: 100%;
+                font-size: 0.85rem;
+            }}
+            .dataframe-table th {{
+                background: #161b22; color: #39d2c0;
+                padding: 0.7rem 1rem; text-align: left;
+                border-bottom: 2px solid #30363d;
+                font-size: 0.75rem; text-transform: uppercase;
+                letter-spacing: 0.05em;
+            }}
+            .dataframe-table td {{
+                padding: 0.55rem 1rem;
+                border-bottom: 1px solid #21262d;
+                color: #8b949e;
+            }}
+            .dataframe-table tr:hover td {{
+                background: rgba(255,255,255,0.02);
+            }}
+        &lt;/style&gt;
+    &lt;/head&gt;
+    &lt;body&gt;
+        &lt;h1&gt;📊 DataFrame — Données JSON Externes&lt;/h1&gt;
+        &lt;p class="meta"&gt;Source : </span>{url}<span class="st"> — </span>{<span class="fn">len</span>(df)}<span class="st"> lignes × </span>{<span class="fn">len</span>(df.columns)}<span class="st"> colonnes&lt;/p&gt;
+        </span>{html_table}<span class="st">
+    &lt;/body&gt;
+    &lt;/html&gt;
+    """</span>
+
+    <span class="kw">return</span> HTMLResponse(<span class="param">content</span>=html)</pre>
+        </div>
+
+        <h3>Tester les deux routes</h3>
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">Terminal — JSON brut</span>
+                <span class="lang-badge lang-bash">bash</span>
+            </div>
+            <pre><span class="cm"># Récupérer les utilisateurs avec colonnes filtrées</span>
+curl "http://localhost:8000/fetch-json?colonnes=name,email,phone&limite=5"</pre>
+        </div>
+
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">Réponse JSON</span>
+                <span class="lang-badge lang-json">json</span>
+            </div>
+            <pre>{
+    <span class="st">"source"</span>: <span class="st">"https://jsonplaceholder.typicode.com/users"</span>,
+    <span class="st">"total_lignes"</span>: <span class="num">5</span>,
+    <span class="st">"colonnes"</span>: [<span class="st">"name"</span>, <span class="st">"email"</span>, <span class="st">"phone"</span>],
+    <span class="st">"donnees"</span>: [
+        {
+            <span class="st">"name"</span>: <span class="st">"Leanne Graham"</span>,
+            <span class="st">"email"</span>: <span class="st">"Sincere@april.biz"</span>,
+            <span class="st">"phone"</span>: <span class="st">"1-770-736-8031 x56442"</span>
+        },
+        {
+            <span class="st">"name"</span>: <span class="st">"Ervin Howell"</span>,
+            <span class="st">"email"</span>: <span class="st">"Shanna@melissa.tv"</span>,
+            <span class="st">"phone"</span>: <span class="st">"010-692-6593 x09125"</span>
+        },
+        <span class="cm">// ... 3 autres utilisateurs</span>
+    ]
+}</pre>
+        </div>
+
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">Navigateur — Tableau HTML</span>
+                <span class="lang-badge lang-bash">url</span>
+            </div>
+            <pre><span class="cm"># Ouvrir dans le navigateur pour voir le tableau stylisé</span>
+http://localhost:8000/fetch-json/tableau?colonnes=name,email,company&limite=5</pre>
+        </div>
+
+        <h3>Aperçu du tableau rendu dans le navigateur</h3>
+        <div class="df-table-wrapper">
+            <table class="df-table">
+                <thead>
+                    <tr>
+                        <th class="idx">#</th>
+                        <th>name</th>
+                        <th>email</th>
+                        <th>phone</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="idx">0</td>
+                        <td class="str-val">Leanne Graham</td>
+                        <td class="str-val">Sincere@april.biz</td>
+                        <td class="str-val">1-770-736-8031 x56442</td>
+                    </tr>
+                    <tr>
+                        <td class="idx">1</td>
+                        <td class="str-val">Ervin Howell</td>
+                        <td class="str-val">Shanna@melissa.tv</td>
+                        <td class="str-val">010-692-6593 x09125</td>
+                    </tr>
+                    <tr>
+                        <td class="idx">2</td>
+                        <td class="str-val">Clementine Bauch</td>
+                        <td class="str-val">Nathan@yesenia.net</td>
+                        <td class="str-val">1-463-123-4447</td>
+                    </tr>
+                    <tr>
+                        <td class="idx">3</td>
+                        <td class="str-val">Patricia Lebsack</td>
+                        <td class="str-val">Julianne.OConner@kory.org</td>
+                        <td class="str-val">493-170-9623 x156</td>
+                    </tr>
+                    <tr>
+                        <td class="idx">4</td>
+                        <td class="str-val">Chelsey Dietrich</td>
+                        <td class="str-val">Lucio_Heaney@jasper.info</td>
+                        <td class="str-val">(254)954-1289</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>Comment ça marche sous le capot</h3>
+
+        <div class="arch-diagram">
+            <div class="arch-flow">
+                <div class="arch-box arch-client">
+                    🖥️ Client
+                    <small>GET /fetch-json/tableau</small>
+                </div>
+                <div class="arch-arrow">
+                    <span>requête</span>
+                    <span class="arrow-line">→→→</span>
+                </div>
+                <div class="arch-box arch-api">
+                    ⚡ FastAPI + Pandas
+                    <small>json → DataFrame → HTML</small>
+                </div>
+                <div class="arch-arrow">
+                    <span>httpx.get(url)</span>
+                    <span class="arrow-line">→→→</span>
+                </div>
+                <div class="arch-box arch-external">
+                    🌍 API Publique
+                    <small>jsonplaceholder.typicode.com</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="card card-tip">
+            <div class="card-label">🐼 Pourquoi utiliser Pandas ici ?</div>
+            <p>Même pour un simple affichage, Pandas offre des avantages concrets : filtrage de colonnes en une ligne (<code>df[cols]</code>), conversion automatique en HTML (<code>df.to_html()</code>), gestion des types de données, et possibilité d'ajouter des calculs statistiques (<code>df.describe()</code>). Dans un vrai projet, vous pourriez ajouter du tri, du groupement, ou des agrégations avant l'affichage.</p>
+        </div>
+
+        <h3>Autres URLs à tester</h3>
+        <div class="code-block">
+            <div class="code-header">
+                <span class="filename">Terminal — Exemples avec d'autres sources</span>
+                <span class="lang-badge lang-bash">bash</span>
+            </div>
+            <pre><span class="cm"># Tous (fake) — idéal pour tester la pagination</span>
+curl "http://localhost:8000/fetch-json?url=https://jsonplaceholder.typicode.com/todos&colonnes=userId,title,completed&limite=5"
+
+<span class="cm"># Posts (fake) — bon pour tester les textes longs</span>
+curl "http://localhost:8000/fetch-json?url=https://jsonplaceholder.typicode.com/posts&colonnes=userId,title&limite=5"
+
+<span class="cm"># Pays des Amériques — vraies données géographiques</span>
+curl "http://localhost:8000/fetch-json?url=https://restcountries.com/v3.1/region/americas&colonnes=name,capital,population&limite=10"</pre>
+        </div>
+
+        <div class="card card-warning">
+            <div class="card-label">⚠️ Attention — Données imbriquées</div>
+            <p>Certaines APIs retournent du JSON imbriqué (objets dans des objets). Par exemple, <code>restcountries.com</code> retourne <code>{"name": {"common": "Canada", "official": "..."}}</code>. Pandas crée alors une colonne <code>name</code> contenant un dictionnaire. Pour « aplatir » ces données, utilisez <code>pd.json_normalize(data)</code> au lieu de <code>pd.DataFrame(data)</code>.</p>
+        </div>
+
+    </section>
+
+</main>
+
+<!-- ═══════════════════════ FOOTER ═══════════════════════ -->
+<footer class="footer">
+    <p>© 2026 <strong>Steve Ataky, PhD</strong> — Institut Teccart — Cours 420-D0T-TT</p>
+    <p style="margin-top:0.3rem;">Documentation technique — Session Hiver 2026</p>
+    <p style="margin-top:0.3rem; font-size:0.7rem;">Tous droits réservés. Aucune partie de ce document ne peut être reproduite sans autorisation écrite de l'auteur.</p>
+</footer>
+
+</body>
+</html>
